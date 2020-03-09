@@ -274,10 +274,10 @@ where
             ]) {
                 Some(TOKEN_INDENT) => {
                     if !first {
-                        self.finish_node();
+                        //self.finish_node();
                     }
                     first = false;
-                    self.start_node(NODE_STRING_LINE);
+                    //self.start_node(NODE_STRING_LINE);
                     self.bump();
                 },
                 Some(TOKEN_STRING_CONTENT) => self.bump(),
@@ -293,12 +293,13 @@ where
             }
         }
         if !first {
-            self.finish_node();
+            //self.finish_node();
         }
         self.expect(TOKEN_STRING_END);
 
         self.finish_node();
     }
+
     fn next_attr(&mut self) {
         match self.peek() {
             Some(TOKEN_DYNAMIC_START) => self.parse_dynamic(),
