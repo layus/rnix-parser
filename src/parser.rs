@@ -260,16 +260,28 @@ where
         self.finish_node();
     }
     fn parse_string(&mut self) {
+        let multiline = self.peek_raw().map(|(t, s)| *t == TOKEN_STRING_START && s == "''").unwrap_or(false);
         self.start_node(NODE_STRING);
         self.expect(TOKEN_STRING_START);
 
+        if multiline {
+            self.start_node(NODE_STRING_LINE);
+        }
         loop {
             match self.expect_peek_any(&[
                 TOKEN_STRING_END,
                 TOKEN_STRING_CONTENT,
                 TOKEN_INTERPOL_START,
             ]) {
-                Some(TOKEN_STRING_CONTENT) => self.bump(),
+                Some(TOKEN_STRING_CONTENT) => {
+                    if multiline {
+                        if self.peek_data().map(|(_, s)| &s[0..1] == "\n").unwrap_or(false) {
+                            self.finish_node();
+                            self.start_node(NODE_STRING_LINE);
+                        }
+                    }
+                    self.bump()
+                },
                 Some(TOKEN_INTERPOL_START) => {
                     self.start_node(NODE_STRING_INTERPOL);
                     self.bump();
@@ -280,6 +292,9 @@ where
                 // handled by expect_peek_any
                 _ => break,
             }
+        }
+        if multiline {
+            self.finish_node();
         }
         self.expect(TOKEN_STRING_END);
 
