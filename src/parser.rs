@@ -264,24 +264,23 @@ where
         self.start_node(NODE_STRING);
         self.expect(TOKEN_STRING_START);
 
-        if multiline {
-            self.start_node(NODE_STRING_LINE);
-        }
+        let mut first = true;
         loop {
             match self.expect_peek_any(&[
                 TOKEN_STRING_END,
                 TOKEN_STRING_CONTENT,
                 TOKEN_INTERPOL_START,
+                TOKEN_INDENT,
             ]) {
-                Some(TOKEN_STRING_CONTENT) => {
-                    if multiline {
-                        if self.peek_data().map(|(_, s)| &s[0..1] == "\n").unwrap_or(false) {
-                            self.finish_node();
-                            self.start_node(NODE_STRING_LINE);
-                        }
+                Some(TOKEN_INDENT) => {
+                    if !first {
+                        self.finish_node();
                     }
-                    self.bump()
+                    first = false;
+                    self.start_node(NODE_STRING_LINE);
+                    self.bump();
                 },
+                Some(TOKEN_STRING_CONTENT) => self.bump(),
                 Some(TOKEN_INTERPOL_START) => {
                     self.start_node(NODE_STRING_INTERPOL);
                     self.bump();
@@ -293,7 +292,7 @@ where
                 _ => break,
             }
         }
-        if multiline {
+        if !first {
             self.finish_node();
         }
         self.expect(TOKEN_STRING_END);

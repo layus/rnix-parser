@@ -35,6 +35,7 @@ struct Interpol {
 #[derive(Clone, Copy)]
 enum Todo {
     StringBody { multiline: bool },
+    StringBodyIndent,
     StringEnd,
     InterpolStart,
 }
@@ -109,7 +110,7 @@ impl<'a> Tokenizer<'a> {
             if multiline && begin != start {
                 if let Some('\n') = self.peek() {
                     self.ctx.push(Context {
-                        todo: Some(Todo::StringBody { multiline }),
+                        todo: Some(Todo::StringBodyIndent),
                         ..Default::default()
                     });
                     return TOKEN_STRING_CONTENT;
@@ -178,9 +179,27 @@ impl<'a> Iterator for Tokenizer<'a> {
                     *todo = Some(Todo::StringEnd);
                     let token = self.next_string(multiline);
                     if self.state == start {
+                        if let Some('\n') = self.peek() {
+                            self.ctx.push(Context {
+                                todo: Some(Todo::StringBodyIndent),
+                                ..Default::default()
+                            })
+                        }
                         continue;
                     }
                     return Some((token, self.string_since(start)));
+                }
+                Some(Todo::StringBodyIndent) => {
+                    *todo = Some(Todo::StringBody { multiline: true });
+                    match self.peek() {
+                        Some('\n') => {
+                            self.next().unwrap();
+                        },
+                        Some(' ') => (),
+                        _ => return Some((TOKEN_ERROR, self.string_since(start)))
+                    }
+                    self.consume(|c| c == ' ');
+                    return Some((TOKEN_INDENT, self.string_since(start)));
                 }
                 Some(Todo::StringEnd) => {
                     let status = match self.peek() {
@@ -301,6 +320,12 @@ impl<'a> Iterator for Tokenizer<'a> {
                             if string {
                                 self.ctx.last_mut().unwrap().todo =
                                     Some(Todo::StringBody { multiline });
+                                if multiline {
+                                    self.ctx.push(Context {
+                                        todo: Some(Todo::StringBodyIndent),
+                                        ..Default::default()
+                                    });
+                                }
                                 return Some((TOKEN_INTERPOL_END, self.string_since(start)));
                             } else {
                                 return Some((TOKEN_DYNAMIC_END, self.string_since(start)));
@@ -408,6 +433,10 @@ impl<'a> Iterator for Tokenizer<'a> {
             '\'' if self.peek() == Some('\'') => {
                 self.next().unwrap();
                 self.ctx.last_mut().unwrap().todo = Some(Todo::StringBody { multiline: true });
+                self.ctx.push(Context {
+                    todo: Some(Todo::StringBodyIndent),
+                    ..Default::default()
+                });
                 Some((TOKEN_STRING_START, self.string_since(start)))
             }
             '0'..='9' => {
