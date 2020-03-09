@@ -103,8 +103,18 @@ impl<'a> Tokenizer<'a> {
         len
     }
     fn next_string(&mut self, multiline: bool) -> SyntaxKind {
+        let begin = self.state;
         loop {
             let start = self.state;
+            if multiline && begin != start {
+                if let Some('\n') = self.peek() {
+                    self.ctx.push(Context {
+                        todo: Some(Todo::StringBody { multiline }),
+                        ..Default::default()
+                    });
+                    return TOKEN_STRING_CONTENT;
+                }
+            }
             match self.next() {
                 None => return TOKEN_ERROR,
                 Some('"') if !multiline => {
@@ -115,7 +125,6 @@ impl<'a> Tokenizer<'a> {
                     None => return TOKEN_ERROR,
                     Some(_) => (),
                 },
-
                 Some('\'') if multiline => match self.next() {
                     None => return TOKEN_ERROR,
                     Some('\'') => match self.peek() {
